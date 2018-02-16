@@ -10,7 +10,7 @@ object Lab3 extends JsyApplication with Lab3Like {
    * CSCI 3155: Lab 3 
    * Jesse Gonzales
    * 
-   * Partner:
+   * Partner: Rawan
    * Collaborators: <Any Collaborators>
    */
 
