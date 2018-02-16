@@ -8,9 +8,9 @@ object Lab3 extends JsyApplication with Lab3Like {
   
   /*
    * CSCI 3155: Lab 3 
-   * <Your Name>
+   * Jesse Gonzales
    * 
-   * Partner: <Your Partner's Name>
+   * Partner:
    * Collaborators: <Any Collaborators>
    */
 
@@ -42,10 +42,15 @@ object Lab3 extends JsyApplication with Lab3Like {
     require(isValue(v))
     (v: @unchecked) match {
       case N(n) => n
-      case B(false) => ???
-      case B(true) => ???
-      case Undefined => ???
-      case S(s) => ???
+      case B(false) => 0
+      case B(true) => 1
+      case Undefined => Double.NaN
+      case S(s) => try {
+        val x = s.toDouble
+        if (x.isWhole()) x.toInt else x
+      } catch {
+        case e: NumberFormatException => Double.NaN
+      }
       case Function(_, _, _) => Double.NaN
     }
   }
@@ -55,7 +60,13 @@ object Lab3 extends JsyApplication with Lab3Like {
     (v: @unchecked) match {
       case B(b) => b
       case Function(_, _, _) => true
-      case _ => ??? // delete this line when done
+      case S(s) => false
+      case Undefined => false
+      case N(n) => n match {
+        case 0 => false
+        case Double.NaN => false
+        case _ => true
+      }
     }
   }
   
@@ -66,7 +77,9 @@ object Lab3 extends JsyApplication with Lab3Like {
         // Here in toStr(Function(_, _, _)), we will deviate from Node.js that returns the concrete syntax
         // of the function (from the input program).
       case Function(_, _, _) => "function"
-      case _ => ??? // delete this line when done
+      case N(n) => if(n.isWhole()) n.toInt.toString()  else n.toString()
+      case B(b) => if (b) "true" else "false"
+      case Undefined => "undefined"
     }
   }
 
@@ -82,7 +95,21 @@ object Lab3 extends JsyApplication with Lab3Like {
     require(isValue(v2))
     require(bop == Lt || bop == Le || bop == Gt || bop == Ge)
     (v1, v2) match {
-      case _ => ??? // delete this line when done
+      case (Undefined,v2) => false
+      case (v1, Undefined) => false
+      case (Undefined, Undefined) => false
+      case (S(_), S(_)) => bop match {
+        case Lt => if (toStr(v1) < toStr(v2)) true else false
+        case Le => if (toStr(v1) <= toStr(v2)) true else false
+        case Gt => if (toStr(v1) > toStr(v2)) true else false
+        case Ge => if (toStr(v1) >= toStr(v2)) true else false
+      }
+      case _ => bop match {
+        case Lt => if (toNumber(v1) < toNumber(v2)) true else false
+        case Le => if (toNumber(v1) <= toNumber(v2)) true else false
+        case Gt => if (toNumber(v1) > toNumber(v2)) true else false
+        case Ge => if (toNumber(v1) >= toNumber(v2)) true else false
+      }
     }
   }
 
@@ -96,23 +123,84 @@ object Lab3 extends JsyApplication with Lab3Like {
     e match {
       /* Base Cases */
       case N(_) | B(_) | S(_) | Undefined | Function(_, _, _) => e
-      case Var(x) => ???
+      case Var(x) => lookup(env, x)
       
       /* Inductive Cases */
       case Print(e1) => println(pretty(eval(env, e1))); Undefined
+      case ConstDecl(x, e1, e2) => eval(extend(env, x, eval(env, e1)), e2)
 
-        // ****** Your cases here
+      case Call(e1, e2) => e1 match {
+        case Function(p, x, e1) => eval(extend(env, x, eval(env, e2)), e1)
 
-      case Call(e1, e2) => ???
-      case _ => ??? // delete this line when done
+        case _ => DynamicTypeError(e1); Undefined
+      }
+        //require (but maybe not use require() e1 to be a Function, otherwise typeerror
+        //evaluate e1 to v1, where v1 is the body of a function
+        //then evaluate e2 to v2, where v2 is the argument to the function, mapped to env
+        //then use the function v1 with the argument v2
+
+      case Binary(bop, e1, e2) => bop match {
+        case And => eval(env, e1) match {
+          case N(n) => if (n == 0) N(0) else eval(env, e2)
+          case B(b) => if (b == true) eval(env, e2) else B(false)
+          case S(s) => eval(env, e2)
+          case Undefined => Undefined
+          case _ => eval(env, e2) //this doesn't do anything important, but I kept getting warnings
+                                  //if nothing matches, just evaluate e2, I guess
+        }
+        case Or => eval(env, e1) match {
+          case N(n) => if (n == 0) eval(env, e2) else N(n)
+          case B(b) => if (b) B(true) else eval(env, e2)
+          case S(s) => S(s)
+          case Undefined => eval(env, e2)
+          case _ => eval(env, e2)
+        }
+
+        case Plus => eval(env, e1) match {
+          case S(s) => S(toStr(eval(env, e1)) + toStr(eval(env,e2)))
+          case _ => eval(env, e2) match {
+            case S(s) => S(toStr(eval(env, e1)) + toStr(eval(env,e2)))
+            case _ => N(toNumber(eval(env, e1)) + toNumber(eval(env, e2)))
+          }
+        }
+
+        case Minus => N(toNumber(eval(env, e1)) - toNumber(eval(env, e2)))
+
+        case Times => N(toNumber(eval(env, e1)) * toNumber(eval(env, e2)))
+        case Div => if (toNumber(eval(env, e2)) == 0) N(Double.PositiveInfinity) else N(toNumber(eval(env, e1)) / toNumber(eval(env, e2)))
+
+        case Eq => if (eval(env, e1) == eval(env, e2)) B(true) else B(false)
+        case Ne => if (eval(env, e1) != eval(env, e2)) B(true) else B(false)
+
+        case Seq => eval(env, e1); eval(env, e2)
+
+        case _ => B(inequalityVal(bop, e1, e2))
+      }
+
+      case Unary(uop, e1) => uop match {
+        case Neg => N(-toNumber(eval(env, e1)))
+
+        case Not => eval(env, e1) match {
+          case S(s) => B(false)
+          case B(b) => if (b) B(false) else B(true)
+          case N(n) => if (n > 0) B(false) else B(true)
+          case Undefined => B(true)
+          case _ => Undefined
+        }
+      }
+
+      case If(e1, e2, e3) => if (toBoolean(eval(env, e1))) eval(env, e2) else eval(env, e3)
     }
   }
     
 
   /* Small-Step Interpreter with Static Scoping */
 
-  def iterate(e0: Expr)(next: (Expr, Int) => Option[Expr]): Expr = {
-    def loop(e: Expr, n: Int): Expr = ???
+  def iterate(e0: Expr)(next: (Expr, Int) => Option[Expr]): Expr = { //don't worry about what next does
+    def loop(e: Expr, n: Int): Expr = next(e, n) match {
+      case None => e
+      case Some(e1) => loop(e1, n + 1)
+    } //call next until we get None
     loop(e0, 0)
   }
   

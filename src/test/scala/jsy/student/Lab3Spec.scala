@@ -8,6 +8,45 @@ import org.scalatest._
 
 class Lab3Spec(lab3: Lab3Like) extends FlatSpec {
   import lab3._
+//First, try some of the lab 2 stuff -- see if it still works here
+
+  "And" should "return true only if both expressions are true" in {
+    val env: Env = empty
+    val t = B(true)
+    val f = B(false)
+    val x = S("Hello")
+    assert(eval(env, Binary(And,t,t)) === t)
+    assert(eval(env, Binary(And,t,f)) === f)
+    assert(eval(env, Binary(And,f,t)) === f)
+    assert(eval(env, Binary(And,f,f)) === f)
+    assert(eval(env, Binary(And,x,t)) === t) //added this
+  }
+  "Plus" should "add two number values and return a number" in {
+    val env: Env = empty
+    val e1 = N(1)
+    val e2 = N(2)
+    val e3 = eval(env, Binary(Plus, e1, e2))
+    assert(e3 === N(3))
+  }
+
+  it should "return non-intuitive results from differing types" in { //Added this
+    val env: Env = empty
+    val e1 = S("Hello")
+    val e2 = B(false)
+    val e3 = N(123)
+    val e4 = eval(env, Binary(Plus, e1, e2))
+    val e5 = eval(env, Binary(Plus, e3, e2))
+    assert(e4 === S("Hellofalse"))
+    assert(e5 === N(123))
+  }
+
+  "Lt" should "return true if the first expression is less than the second" in {
+    val env: Env = empty
+    val e1 = N(5)
+    val e2 = N(7)
+    val e3 = eval(env, Binary(Lt, e1, e2))
+    assert(e3 === B(true))
+  }
 
   "eval/function" should "be considered values" in {
     val f = "f"
