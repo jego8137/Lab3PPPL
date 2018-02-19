@@ -131,11 +131,19 @@ object Lab3 extends JsyApplication with Lab3Like {
       case Print(e1) => println(pretty(eval(env, e1))); Undefined
       case ConstDecl(x, e1, e2) => eval(extend(env, x, eval(env, e1)), e2)
 
-      case Call(e1, e2) => e1 match {
-        case Function(p, x, e1) => eval(extend(env, x, eval(env, e2)), e1)
+      case Call(e1, e2) => eval(env,e1) match {
+        case Function(p, x, e) => p match {
+          case Some(s) => {
+            val envX = extend(env, x, eval(env, e2))
+            val envP = extend(envX, s, eval(env, e1))
+            eval(envP, e)
+          }//end some
+          case _ => eval(extend(env, x, eval(env, e2)), e)
+        }//end p match
+       case _ => throw DynamicTypeError(e1)
 
-        case _ => DynamicTypeError(e1); Undefined
       }
+
         //require (but maybe not use require() e1 to be a Function, otherwise typeerror
         //evaluate e1 to v1, where v1 is the body of a function
         //then evaluate e2 to v2, where v2 is the argument to the function, mapped to env
@@ -143,13 +151,6 @@ object Lab3 extends JsyApplication with Lab3Like {
 
       case Binary(bop, e1, e2) => bop match {
         case And => eval(env, e1) match {
-//          case N(n) => if (n == 0) N(0) else eval(env, e2)
-//          case B(b) => if (b == true) eval(env, e2) else B(false)
-//          case S("") => S("")
-//          case S(s) => eval(env, e2)
-//          case Undefined => Undefined
-//          case _ => eval(env, e2) //this doesn't do anything important, but I kept getting warnings
-                                  //if nothing matches, just evaluate e2, I guess
           case Undefined=> Undefined
           case N(n) => n match{
             case 0=>N(0)
@@ -188,8 +189,17 @@ object Lab3 extends JsyApplication with Lab3Like {
         case Times => N(toNumber(eval(env, e1)) * toNumber(eval(env, e2)))
         case Div => if (toNumber(eval(env, e2)) == 0) N(Double.PositiveInfinity) else N(toNumber(eval(env, e1)) / toNumber(eval(env, e2)))
 
-        case Eq => if (eval(env, e1) == eval(env, e2)) B(true) else B(false)
-        case Ne => if (eval(env, e1) != eval(env, e2)) B(true) else B(false)
+        case Eq => (e1, e2) match {
+          case (Function(_,_,_),_) => throw DynamicTypeError(e)
+          case (_,Function(_,_,_)) => throw DynamicTypeError(e)
+          case _ => if (eval(env, e1) == eval(env, e2)) B(true) else B(false)
+        }
+        case Ne => (e1, e2) match {
+          case (Function(_, _, _), _) => throw DynamicTypeError(e)
+          case (_, Function(_, _, _)) => throw DynamicTypeError(e)
+          case _ => if (eval(env, e1) != eval(env, e2)) B(true) else B(false)
+        }
+
 
         case Seq => eval(env, e1); eval(env, e2)
 
@@ -288,10 +298,8 @@ object Lab3 extends JsyApplication with Lab3Like {
       case ConstDecl(x,e1,e2) if (isValue(e1)) => substitute(e2, e1, x)
 
       case Call(e1,e2) if (isValue(e1) && isValue(e2)) => e1 match {
-        case (Function(None,x,e11)) =>
-          substitute(e11, e2, x)
-        case (Function(Some(s),x,e11)) =>
-          substitute(substitute(e11, e1, s), e2, x)
+        case (Function(None,x,e11)) => substitute(e11, e2, x)
+        case (Function(Some(s),x,e11)) => substitute(substitute(e11, e1, s), e2, x)
         case _ => throw DynamicTypeError(e)
       }
       
@@ -300,12 +308,13 @@ object Lab3 extends JsyApplication with Lab3Like {
       
         // ****** Your cases here
       case Unary(uop, e) => Unary(uop, step(e))
-      case Binary(bop,e1,e2)=> (e1,e2) match {
+      case Binary(bop,e1,e2) if(!isValue(e1) )=>  (e1,e2) match {
         case (Function(_,_,_),_) =>  throw DynamicTypeError(e)
         case (_,Function(_,_,_))=> throw DynamicTypeError(e)
-        case _ =>  Binary (bop, e1, step (e2) )
+        case _ =>  Binary (bop, step(e1), e2 )
       }
-      case Binary(bop , e1, e2) => Binary(bop, step(e1), e2)
+      case Binary(bop , e1, e2) => Binary(bop, e1, step(e2))
+
       case If(e1,e2,e3) => If(step(e1),e2,e3)
       case ConstDecl(x, e1, e2) => ConstDecl(x, step(e1),e2)
       case Call(v1,e2) if (isValue(v1)) => v1 match {
