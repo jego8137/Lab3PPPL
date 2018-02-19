@@ -10,7 +10,7 @@ object Lab3 extends JsyApplication with Lab3Like {
    * CSCI 3155: Lab 3 
    * Jesse Gonzales
    * 
-   * Partner: Rawan
+   * Partner: Rawan Alzowaid
    * Collaborators: <Any Collaborators>
    */
 
@@ -45,6 +45,7 @@ object Lab3 extends JsyApplication with Lab3Like {
       case B(false) => 0
       case B(true) => 1
       case Undefined => Double.NaN
+      case S("")=> 0
       case S(s) => try {
         val x = s.toDouble
         if (x.isWhole()) x.toInt else x
@@ -60,7 +61,8 @@ object Lab3 extends JsyApplication with Lab3Like {
     (v: @unchecked) match {
       case B(b) => b
       case Function(_, _, _) => true
-      case S(s) => false
+      case S("") => false
+      case S(str)=> true
       case Undefined => false
       case N(n) => n match {
         case 0 => false
@@ -141,16 +143,33 @@ object Lab3 extends JsyApplication with Lab3Like {
 
       case Binary(bop, e1, e2) => bop match {
         case And => eval(env, e1) match {
-          case N(n) => if (n == 0) N(0) else eval(env, e2)
-          case B(b) => if (b == true) eval(env, e2) else B(false)
-          case S(s) => eval(env, e2)
-          case Undefined => Undefined
-          case _ => eval(env, e2) //this doesn't do anything important, but I kept getting warnings
+//          case N(n) => if (n == 0) N(0) else eval(env, e2)
+//          case B(b) => if (b == true) eval(env, e2) else B(false)
+//          case S("") => S("")
+//          case S(s) => eval(env, e2)
+//          case Undefined => Undefined
+//          case _ => eval(env, e2) //this doesn't do anything important, but I kept getting warnings
                                   //if nothing matches, just evaluate e2, I guess
+          case Undefined=> Undefined
+          case N(n) => n match{
+            case 0=>N(0)
+            case Double.NaN => N(Double.NaN)
+            case _=> eval(env, e2)
+
+          }//case #
+          case B(b)=> b match{
+            case false => B(false)
+            case _ => eval(env,e2)
+
+          }//case B
+          case S("")=> S("")
+          case S(_)=> eval(env,e2)
+          case _ => ???
         }
         case Or => eval(env, e1) match {
-          case N(n) => if (n == 0) eval(env, e2) else N(n)
+          case N(n) => if (n == 0|n.isNaN ) eval(env, e2) else N(n)
           case B(b) => if (b) B(true) else eval(env, e2)
+          case S("")=> eval(env,e2)
           case S(s) => S(s)
           case Undefined => eval(env, e2)
           case _ => eval(env, e2)
@@ -180,10 +199,11 @@ object Lab3 extends JsyApplication with Lab3Like {
       case Unary(uop, e1) => uop match {
         case Neg => N(-toNumber(eval(env, e1)))
 
-        case Not => eval(env, e1) match {
+        case Not => eval(env, e1) match { //B(!toBoolean(eval(env,e1)))
+          case S("")=> B(true)
           case S(s) => B(false)
           case B(b) => if (b) B(false) else B(true)
-          case N(n) => if (n > 0) B(false) else B(true)
+          case N(n) => if (n > 0) B(true) else B(false)
           case Undefined => B(true)
           case _ => Undefined
         }
@@ -209,14 +229,15 @@ object Lab3 extends JsyApplication with Lab3Like {
     e match {
       case N(_) | B(_) | Undefined | S(_) => e
       case Print(e1) => Print(substitute(e1, v, x))
-      case Unary(uop, e1) => ???
-      case Binary(bop, e1, e2) => ???
-      case If(e1, e2, e3) => ???
-      case Call(e1, e2) => ???
-      case Var(y) => ???
-      case Function(None, y, e1) => ???
-      case Function(Some(y1), y2, e1) => ???
-      case ConstDecl(y, e1, e2) => ???
+      case Unary(uop, e1) => Unary(uop,substitute(e1,v,x))
+      case Binary(bop, e1, e2) => Binary(bop,substitute(e1,v,x),substitute(e2,v,x))
+      case If(e1, e2, e3) => If(substitute(e1,v,x),substitute(e2,v,x),substitute(e3,v,x))
+      case Call(e1, e2) => Call(substitute(e1,v,x),substitute(e2,v,x))
+      case Var(y) => if (y == x) v else Var(y)
+      case Function(None, y, e1) => if (y == x) Function(None, y, e1) else Function(None, y, substitute(e1,v,x))
+      case Function(Some(y1), y2, e1) => if (y2 == x || y1 == x) Function(Some(y1), y2, e1) else Function(Some(y1),y2,substitute(e1,v,x))
+      case ConstDecl(y, e1, e2) => if (y == x) ConstDecl(y,substitute(e1,v,x),e2) else ConstDecl(y,substitute(e1,v,x),substitute(e2,v,x))
+
     }
   }
     
@@ -226,12 +247,72 @@ object Lab3 extends JsyApplication with Lab3Like {
       case Print(v1) if isValue(v1) => println(pretty(v1)); Undefined
       
         // ****** Your cases here
+      case Unary(uop, v) if isValue(v) => uop match{
+        case Neg => N(-toNumber(v))
+        case Not => B(!toBoolean(v))
+      }
+
+      case Binary(Seq, e1, e2) if (isValue(e1)) => e2
+
+      case Binary(Plus, e1, e2) if (isValue(e1) && isValue(e2)) => (e1,e2) match {
+        case (S(s1),_) => S(s1 + toStr(e2))
+        case (_,S(s2)) => S(toStr(e1) + s2)
+        case (_,_) => N(toNumber(e1) + toNumber(e2))
+      }
+
+
+      case Binary(bop, e1, e2) if (isValue(e1) && isValue(e2)) => bop match {
+        case Minus => N(toNumber(e1) - toNumber(e2))
+        case Times => N(toNumber(e1) * toNumber(e2))
+        case Div => N(toNumber(e1) / toNumber(e2))
+        case Lt => (e1, e2) match {
+          case (S(s1),S(s2)) => B(s1 < s2)
+          case (_,_) => B(toNumber(e1) < toNumber(e2))
+        }
+        case Eq => (e1, e2) match {
+          case (Function(_,_,_),_) => throw DynamicTypeError(e)
+          case (_,Function(_,_,_)) => throw DynamicTypeError(e)
+          case _ => B(e1==e2)
+        }
+        case Ne => (e1, e2) match {
+          case (Function(_,_,_),_) => throw DynamicTypeError(e)
+          case (_,Function(_,_,_)) => throw DynamicTypeError(e)
+          case _ => B(e1 != e2)
+        }
+        case And => if(toBoolean(e1)) e2 else e1
+        case Or => if(toBoolean(e1)) e1 else e2
+      }
+      case If(e1,e2,e3) if (isValue(e1)) => if(toBoolean(e1)) e2 else e3
+
+
+      case ConstDecl(x,e1,e2) if (isValue(e1)) => substitute(e2, e1, x)
+
+      case Call(e1,e2) if (isValue(e1) && isValue(e2)) => e1 match {
+        case (Function(None,x,e11)) =>
+          substitute(e11, e2, x)
+        case (Function(Some(s),x,e11)) =>
+          substitute(substitute(e11, e1, s), e2, x)
+        case _ => throw DynamicTypeError(e)
+      }
       
       /* Inductive Cases: Search Rules */
       case Print(e1) => Print(step(e1))
       
         // ****** Your cases here
-
+      case Unary(uop, e) => Unary(uop, step(e))
+      case Binary(bop,e1,e2)=> (e1,e2) match {
+        case (Function(_,_,_),_) =>  throw DynamicTypeError(e)
+        case (_,Function(_,_,_))=> throw DynamicTypeError(e)
+        case _ =>  Binary (bop, e1, step (e2) )
+      }
+      case Binary(bop , e1, e2) => Binary(bop, step(e1), e2)
+      case If(e1,e2,e3) => If(step(e1),e2,e3)
+      case ConstDecl(x, e1, e2) => ConstDecl(x, step(e1),e2)
+      case Call(v1,e2) if (isValue(v1)) => v1 match {
+        case Function(_,_,_) => Call(v1,step(e2))
+        case _ => throw DynamicTypeError(e)
+      }
+      case Call(e1,e2) => Call(step(e1),e2)
       /* Cases that should never match. Your cases above should ensure this. */
       case Var(_) => throw new AssertionError("Gremlins: internal error, not closed expression.")
       case N(_) | B(_) | Undefined | S(_) | Function(_, _, _) => throw new AssertionError("Gremlins: internal error, step should not be called on values.");
