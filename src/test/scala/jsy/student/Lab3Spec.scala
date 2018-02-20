@@ -135,6 +135,7 @@ class Lab3Spec(lab3: Lab3Like) extends FlatSpec {
     val e2p = parse("2 - 1")
     val v1 = N(0)
     val v2 = N(1)
+    val e3 = parse("'hello' + 2")
 
     val vidfunction = parse("function (x) { return x }")
 
@@ -169,6 +170,22 @@ class Lab3Spec(lab3: Lab3Like) extends FlatSpec {
         step(Unary(Neg, e1))
       }
     }
+
+    "SearchBinary" should "perform SearchBinary" in { //Added this
+      assertResult(Binary(Minus, N(1), e2)) {
+        step(Binary(Minus, e2p, e2))
+      }
+    }
+
+    "SearchBinary" should "perform SearchBinary with non-intuitive values" in { //Added this
+      assertResult(S("hello1")) {
+        step(Binary(Plus, S("hello"), N(1)))
+      }
+      assertResult(Binary(Plus, B(true), S("hello2"))) {
+        step(Binary(Plus, B(true), e3))
+      }
+    }
+
   }
 }
 
