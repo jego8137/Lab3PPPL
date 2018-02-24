@@ -186,6 +186,18 @@ class Lab3Spec(lab3: Lab3Like) extends FlatSpec {
       }
     }
 
+    "SearchConst" should "perform SearchConst" in { //Added this
+      assertResult(Binary(Plus, N(4), N(2))){
+        step(ConstDecl("x", N(4), Binary(Plus, Var("x"), N(2))))
+      }
+      assertResult(ConstDecl("y", N(3), Binary(Minus, N(4), Var("y")))){
+        step(ConstDecl("x", N(4), ConstDecl("y", N(3), Binary(Minus, Var("x"), Var("y")))))
+      }
+      assertResult(Binary(Minus, N(4), N(3))){
+        step(step(ConstDecl("x", N(4), ConstDecl("y", N(3), Binary(Minus, Var("x"), Var("y"))))))
+      }
+    }
+
   }
 }
 
